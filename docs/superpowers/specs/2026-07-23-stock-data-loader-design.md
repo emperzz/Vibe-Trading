@@ -8,7 +8,7 @@
 
 ## 方案
 
-新增 `agent/backtest/loaders/stock_data_loader.py`，在同一 Python 进程中调用 `stock_data.data_provider.manager.DataFetcherManager`。Vibe-Trading 只暴露一个 `stock_data` loader；具体 fetcher 的优先级、熔断和内部回退继续由 `stock_data` 管理，避免复制十几个 fetcher。
+新增 `agent/backtest/loaders/stock_data_loader.py`，在同一 Python 进程中调用 `stock_data.data_provider.manager.DataFetcherManager`。`stock_data` 不作为已安装的 Python 依赖，也不复制进 Vibe-Trading；由 `VIBE_TRADING_STOCK_DATA_PATH` 指向其项目根目录。Vibe-Trading 只暴露一个 `stock_data` loader；具体 fetcher 的优先级、熔断和内部回退继续由 `stock_data` 管理，避免复制十几个 fetcher。
 
 调用链：
 
@@ -27,7 +27,7 @@ Vibe-Trading DataLoaderProtocol
 - `name = "stock_data"`
 - `markets = {"a_share"}`
 - `requires_auth` 根据 stock_data 可用配置判定，不能把可选 token 写死为必需
-- `is_available()`：仅检查同进程包是否可导入及 manager 是否可构造，不发起网络请求
+- `is_available()`：读取 `EnvConfig.stock_data_path`，检查 `<path>/stock_data/__init__.py`，将项目根目录加入 import path 后再检查 manager 是否可构造；不发起网络请求
 - `fetch(codes, start_date, end_date, interval="1D", fields=None)`
 
 输出统一为：
@@ -65,9 +65,16 @@ tencent -> mootdx -> stock_data -> eastmoney -> baostock -> akshare -> tushare -
 
 ## 依赖与失败边界
 
-`stock_data` 是 sibling 项目，不假设已经安装。adapter 应使用懒导入，使 Vibe-Trading 在未安装该包时仍能启动，其 `is_available()` 返回 False，自动 fallback 到其它 A 股数据源。
+`stock_data` 是未安装的 sibling 项目，通过 `EnvConfig` 中的可选字段 `stock_data_path`（环境变量 `VIBE_TRADING_STOCK_DATA_PATH`）定位。配置值指向项目根目录，例如：
 
-不在本次工作中新增依赖锁或复制 sibling 项目代码。开发/测试环境通过可编辑安装或现有 Python 路径提供 `stock_data`；生产打包方式若尚未确定，单独记录为后续发布问题。
+```text
+D:\GitRepo\skills\stock_data
+└── stock_data\__init__.py
+```
+
+loader 只在 `is_available()` 或 `fetch()` 实际执行时做延迟导入：先校验配置路径和 `stock_data/__init__.py`，再将项目根目录加入 `sys.path`，随后导入 `stock_data.data_provider.manager`。不允许 API、MCP 或用户请求传入路径；路径只能来自 `EnvConfig`。不配置、路径不存在、包结构不完整或导入失败时，loader 返回不可用并自动 fallback，不得阻止 Vibe-Trading 启动。
+
+不新增 Python 包依赖，不复制 sibling 项目代码，不使用 HTTP 服务。运行到其它服务器时只需在该服务器 `.env` 中设置对应的本地路径；更新 `stock_data` 后重启 Vibe-Trading 即可加载新代码。
 
 避免在 Vibe-Trading 和 stock_data 之间形成双层无限重试：Vibe-Trading 只把一次 fetch 委托给 manager，manager 内部负责自己的有限回退；适配器不再套额外重试循环。
 
@@ -75,14 +82,15 @@ tencent -> mootdx -> stock_data -> eastmoney -> baostock -> akshare -> tushare -
 
 新增 `agent/tests/test_stock_data_loader.py`，全部使用 mock，不访问外部网络，至少覆盖：
 
-1. registry 注册和 loader 元数据
-2. stock_data 未安装时的可用性行为
-3. manager 返回数据的字段、索引、排序和代码格式标准化
-4. 日线及分钟周期映射
-5. 不支持周期显式拒绝
-6. OHLC 异常数据经过现有校验
-7. 多代码中一部分失败时保留成功结果
-8. A 股 fallback chain 包含 `stock_data`
+- stock_data 路径未配置、路径不存在或包结构不完整时仍能加载 registry
+- 路径只从 EnvConfig 读取，外部请求不能覆盖路径
+- 延迟 import 失败时 Vibe-Trading 仍能启动并继续 fallback
+- manager 返回数据的字段、索引、排序和代码格式标准化
+- 日线及分钟周期映射
+- 不支持周期显式拒绝
+- OHLC 异常数据经过现有校验
+- 多代码中一部分失败时保留成功结果
+- A 股 fallback chain 包含 `stock_data`
 
 验证命令：
 
