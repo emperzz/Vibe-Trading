@@ -121,7 +121,7 @@ def _ensure_registered() -> None:
 # unavailable ``local`` request can degrade into an unrelated network source.
 # An explicit ``local`` request that is unavailable is a config problem the user
 # must see, not something to paper over with a Yahoo/Tencent fetch.
-_NO_NETWORK_FALLBACK_SOURCES: frozenset[str] = frozenset({"local", "qveris"})  # QVERIS-INTEGRATION
+_NO_NETWORK_FALLBACK_SOURCES: frozenset[str] = frozenset({"local", "qveris", "stock_data"})  # QVERIS-INTEGRATION
 
 
 # ---------------------------------------------------------------------------

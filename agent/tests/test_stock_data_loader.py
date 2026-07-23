@@ -54,12 +54,14 @@ def test_fetch_delegates_per_symbol_with_empty_adjust(monkeypatch, tmp_path):
     (package / "__init__.py").write_text("")
     (package / "data_provider" / "__init__.py").write_text("")
     (package / "data_provider" / "manager.py").write_text(
-        "class DataFetcherManager:\n"
+        "class Manager:\n"
         "    def __init__(self): self.calls = []\n"
         "    def get_kline_data(self, code, **kwargs):\n"
         "        self.calls.append((code, kwargs))\n"
         "        import pandas as pd\n"
         "        return pd.DataFrame({'date':['2024-01-01'], 'open':[1], 'high':[2], 'low':[1], 'close':[1.5], 'vol':[3]}), 'fake'\n"
+        "manager = Manager()\n"
+        "def create_default_manager(): return manager\n"
     )
     monkeypatch.setenv("VIBE_TRADING_STOCK_DATA_PATH", str(tmp_path))
     reset_env_config()
@@ -94,6 +96,35 @@ def test_market_data_tool_lists_source():
     from src.tools.market_data_tool import MarketDataTool
 
     assert "stock_data" in MarketDataTool.parameters["properties"]["source"]["enum"]
+
+
+def test_explicit_stock_data_does_not_fallback():
+    from backtest.loaders.registry import _NO_NETWORK_FALLBACK_SOURCES
+
+    assert "stock_data" in _NO_NETWORK_FALLBACK_SOURCES
+
+
+def test_supported_intervals_are_mapped():
+    from backtest.loaders.stock_data_loader import _INTERVALS
+
+    assert _INTERVALS == {"1D": "d", "1m": "1", "5m": "5", "15m": "15", "30m": "30", "1H": "60"}
+
+
+def test_invalid_ohlc_is_dropped():
+    module = importlib.import_module("backtest.loaders.stock_data_loader")
+    frame = pd.DataFrame({
+        "date": ["2024-01-01"], "open": [10], "high": [5], "low": [9],
+        "close": [10], "vol": [1],
+    })
+    assert module._normalize_frame(frame) is None
+
+
+def test_no_path_does_not_change_sys_path(monkeypatch):
+    monkeypatch.delenv("VIBE_TRADING_STOCK_DATA_PATH", raising=False)
+    reset_env_config()
+    before = list(sys.path)
+    importlib.import_module("backtest.loaders.stock_data_loader").DataLoader().is_available()
+    assert sys.path == before
 
 
 @pytest.fixture(autouse=True)

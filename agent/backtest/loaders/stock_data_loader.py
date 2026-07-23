@@ -30,19 +30,29 @@ def _project_root() -> Path | None:
     return root
 
 
-def _manager_class() -> type[Any] | None:
+def _manager_factory() -> Any | None:
     root = _project_root()
     if root is None:
         return None
     root_text = str(root)
-    if root_text not in sys.path:
+    inserted = root_text not in sys.path
+    if inserted:
         sys.path.insert(0, root_text)
     try:
         module = importlib.import_module("stock_data.data_provider.manager")
+        module_file = getattr(module, "__file__", None)
+        if module_file is None or root not in Path(module_file).resolve().parents:
+            return None
+        return getattr(module, "create_default_manager", None)
     except (ImportError, ModuleNotFoundError, AttributeError) as exc:
         logger.debug("stock_data import failed: %s", exc)
         return None
-    return getattr(module, "DataFetcherManager", None)
+    finally:
+        if inserted:
+            try:
+                sys.path.remove(root_text)
+            except ValueError:
+                pass
 
 
 def _normalize_frame(frame: pd.DataFrame) -> pd.DataFrame | None:
@@ -82,11 +92,11 @@ class DataLoader:
     requires_auth = False
 
     def is_available(self) -> bool:
-        manager_cls = _manager_class()
-        if manager_cls is None:
+        factory = _manager_factory()
+        if factory is None:
             return False
         try:
-            manager_cls()
+            factory()
         except Exception as exc:
             logger.debug("stock_data manager unavailable: %s", exc)
             return False
@@ -107,10 +117,10 @@ class DataLoader:
         frequency = _INTERVALS.get(token) or _INTERVALS.get(token.upper())
         if frequency is None:
             raise ValueError(f"stock_data does not support interval={interval!r}")
-        manager_cls = _manager_class()
-        if manager_cls is None:
+        manager_factory = _manager_factory()
+        if manager_factory is None:
             return {}
-        manager = manager_cls()
+        manager = manager_factory()
         result: dict[str, pd.DataFrame] = {}
         for code in codes:
             try:
