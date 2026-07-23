@@ -153,6 +153,7 @@ class DataConfig(_EnvBase):
     ``src/tools/iwencai_tool.py``, ``src/tools/fred_macro_tool.py``.
     """
 
+    stock_data_path: str = Field(alias="VIBE_TRADING_STOCK_DATA_PATH", default="")
     tushare_token: str = Field(alias="TUSHARE_TOKEN", default="")
     ccxt_exchange: str = Field(alias="CCXT_EXCHANGE", default="binance")
     ccxt_timeout_ms: int = Field(alias="CCXT_TIMEOUT_MS", default=15000)

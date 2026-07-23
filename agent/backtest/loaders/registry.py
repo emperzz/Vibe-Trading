@@ -31,6 +31,7 @@ _registered = False
 # Keep in sync with ``_loader_modules`` below — the regression test
 # ``test_valid_sources_covers_all_registered_loaders`` enforces full coverage.
 VALID_SOURCES: set[str] = {
+    "stock_data",
     "tushare",
     "okx",
     "binance",
@@ -80,6 +81,7 @@ def _ensure_registered() -> None:
     _registered = True
 
     _loader_modules = [
+        "backtest.loaders.stock_data_loader",
         "backtest.loaders.tushare",
         "backtest.loaders.okx",
         "backtest.loaders.binance_loader",
@@ -132,7 +134,7 @@ _NO_NETWORK_FALLBACK_SOURCES: frozenset[str] = frozenset({"local", "qveris"})  #
 # that must be politely throttled; Finnhub/AlphaVantage/Tiingo/FMP are key-gated
 # REST fallbacks placed deeper in the chain.
 FALLBACK_CHAINS: dict[str, list[str]] = {
-    "a_share":   ["tencent", "mootdx", "eastmoney", "baostock", "akshare", "tushare", "local"],
+    "a_share":   ["tencent", "mootdx", "stock_data", "eastmoney", "baostock", "akshare", "tushare", "local"],
     "us_equity": ["yahoo", "stooq", "sina", "eastmoney", "yfinance", "tiingo", "fmp", "finnhub", "alphavantage", "longbridge", "akshare", "local"],
     "hk_equity": ["eastmoney", "yahoo", "futu", "yfinance", "akshare", "longbridge", "local"],
     "india_equity": ["yahoo", "yfinance", "india_broker", "local"],

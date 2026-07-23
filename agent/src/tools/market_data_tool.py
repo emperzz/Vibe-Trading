@@ -42,6 +42,7 @@ class MarketDataTool(BaseTool):
                     "yahoo",
                     "okx",
                     "ccxt",
+                    "stock_data",
                     "tushare",
                     "baostock",
                     "tencent",
