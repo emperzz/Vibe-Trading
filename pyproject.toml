@@ -43,6 +43,7 @@ dependencies = [
     "py-mini-racer>=0.2.0",
     "baostock>=0.8.8",
     "gm>=3.0.180,<4",
+    "zzshare>=0.4.0,<0.5",
     "duckdb>=1.2.0",
     "scikit-learn>=1.3.0",
     "joblib>=1.3.0",
