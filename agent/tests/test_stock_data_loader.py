@@ -48,7 +48,29 @@ def test_normalize_frame():
     assert result["volume"].tolist() == [100.0, 200.0]
 
 
-def test_fetch_delegates_per_symbol_with_empty_adjust(monkeypatch, tmp_path):
+@pytest.mark.parametrize(
+    ("code", "expected"),
+    [
+        ("000001.SH", True),
+        ("000300.sh", True),
+        ("399001.SZ", True),
+        ("399006.sz", True),
+        ("600519.SH", False),
+        ("000001.SZ", False),
+        ("510300.SH", False),
+        ("920001.BJ", False),
+        ("000001", False),
+        ("00001.SH", False),
+        ("NOT-A-SYMBOL", False),
+    ],
+)
+def test_is_a_share_index(code, expected):
+    from backtest.loaders.stock_data_loader import _is_a_share_index
+
+    assert _is_a_share_index(code) is expected
+
+
+def test_fetch_delegates_per_symbol_with_asset_and_empty_adjust(monkeypatch, tmp_path):
     package = tmp_path / "stock_data"
     (package / "data_provider").mkdir(parents=True)
     (package / "__init__.py").write_text("")
@@ -70,8 +92,24 @@ def test_fetch_delegates_per_symbol_with_empty_adjust(monkeypatch, tmp_path):
     sys.modules.pop("stock_data", None)
     module = importlib.import_module("backtest.loaders.stock_data_loader")
     loader = module.DataLoader()
-    result = loader.fetch(["000001.SZ"], "2024-01-01", "2024-01-02", interval="1m")
-    assert "000001.SZ" in result
+    codes = ["600519.SH", "000300.SH", "399001.SZ", "920001.BJ"]
+    result = loader.fetch(codes, "2024-01-01", "2024-01-02", interval="1m")
+    manager = importlib.import_module("stock_data.data_provider.manager").manager
+
+    assert list(result) == codes
+    assert manager.calls == [
+        (
+            code,
+            {
+                "start_date": "2024-01-01",
+                "end_date": "2024-01-02",
+                "frequency": "1",
+                "adjust": "",
+                "asset": asset,
+            },
+        )
+        for code, asset in zip(codes, ["stock", "index", "index", "stock"])
+    ]
 
 
 def test_stock_data_is_registered_and_in_a_share_chain():

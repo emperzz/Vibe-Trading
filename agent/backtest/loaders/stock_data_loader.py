@@ -20,6 +20,18 @@ _INTERVALS = {"1D": "d", "1m": "1", "5m": "5", "15m": "15", "30m": "30", "1H": "
 _REQUIRED = ("open", "high", "low", "close", "volume")
 
 
+def _is_a_share_index(code: str) -> bool:
+    """Detect A-share index symbols (000xxx.SH, 399xxx.SZ)."""
+    upper = code.upper()
+    if upper.endswith(".SH"):
+        digits = upper.split(".")[0]
+        return len(digits) == 6 and digits.isdigit() and digits.startswith("000")
+    if upper.endswith(".SZ"):
+        digits = upper.split(".")[0]
+        return len(digits) == 6 and digits.isdigit() and digits.startswith("399")
+    return False
+
+
 def _project_root() -> Path | None:
     configured = get_env_config().data.stock_data_path.strip()
     if not configured:
@@ -124,12 +136,14 @@ class DataLoader:
         result: dict[str, pd.DataFrame] = {}
         for code in codes:
             try:
+                asset = "index" if _is_a_share_index(code) else "stock"
                 frame, _source = manager.get_kline_data(
                     code,
                     start_date=start_date,
                     end_date=end_date,
                     frequency=frequency,
                     adjust="",
+                    asset=asset,
                 )
                 normalized = _normalize_frame(frame)
                 if normalized is not None:
